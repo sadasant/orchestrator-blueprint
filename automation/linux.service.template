@@ -1,0 +1,8 @@
+[Unit]
+Description=Poll an Orchestrator repository and wake its registered tmux pane
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=@LAUNCHER@

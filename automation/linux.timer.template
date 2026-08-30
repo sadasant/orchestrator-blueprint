@@ -1,0 +1,10 @@
+[Unit]
+Description=Periodic Orchestrator repository poll
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=@POLL_SECONDS@s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

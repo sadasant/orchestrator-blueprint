@@ -1,0 +1,5 @@
+.DS_Store
+.orchestrator.local.env
+credentials/local/
+sub-agents/**/runner.log
+*.swp
