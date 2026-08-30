@@ -11,8 +11,9 @@ workdir=${3:-}
 model=${4:-}
 effort=${5:-}
 
-[ "$#" -ge 3 ] && [ "$#" -le 5 ] || orchestrator_die \
-  "usage: $(basename -- "$0") AGENT_ID HARNESS WORKTREE [MODEL] [EFFORT]"
+if [ "$#" -lt 3 ] || [ "$#" -gt 5 ]; then
+  orchestrator_die "usage: $(basename -- "$0") AGENT_ID HARNESS WORKTREE [MODEL] [EFFORT]"
+fi
 
 case "$agent_id" in
   '' | *[!a-z0-9-]*) orchestrator_die "invalid agent ID" ;;

@@ -46,10 +46,12 @@ load_registration() {
 
   [ "$reg_version" = 1 ] || orchestrator_die "unsupported pane registration version"
   valid_agent_name "$reg_harness" || orchestrator_die "invalid registered harness"
-  [ -n "$reg_pane_id" ] && [ -n "$reg_pane_pid" ] && [ -n "$reg_pane_tty" ] || \
+  if [ -z "$reg_pane_id" ] || [ -z "$reg_pane_pid" ] || [ -z "$reg_pane_tty" ]; then
     orchestrator_die "incomplete pane registration"
-  [ -n "$reg_session_id" ] && [ -n "$reg_window_id" ] && [ -n "$reg_registered_at" ] || \
+  fi
+  if [ -z "$reg_session_id" ] || [ -z "$reg_window_id" ] || [ -z "$reg_registered_at" ]; then
     orchestrator_die "incomplete tmux registration"
+  fi
 }
 
 registration_marker() {
@@ -69,11 +71,12 @@ validate_registration() {
 $fields
 EOF
 
-  [ "$pane_id" = "$reg_pane_id" ] && [ "$pane_pid" = "$reg_pane_pid" ] && \
-    [ "$pane_tty" = "$reg_pane_tty" ] && [ "$pane_dead" = 0 ] && \
-    [ "$current_command" = "$reg_current_command" ] && \
-    [ "$session_id" = "$reg_session_id" ] && [ "$window_id" = "$reg_window_id" ] || \
+  if [ "$pane_id" != "$reg_pane_id" ] || [ "$pane_pid" != "$reg_pane_pid" ] || \
+    [ "$pane_tty" != "$reg_pane_tty" ] || [ "$pane_dead" != 0 ] || \
+    [ "$current_command" != "$reg_current_command" ] || \
+    [ "$session_id" != "$reg_session_id" ] || [ "$window_id" != "$reg_window_id" ]; then
     orchestrator_die "registered tmux pane identity changed; register it again"
+  fi
   [ "$marker" = "$(registration_marker)" ] || \
     orchestrator_die "registered tmux pane marker changed; register it again"
 }
@@ -93,8 +96,9 @@ register_pane() {
     session_id window_id <<EOF
 $fields
 EOF
-  [ -n "$pane_id" ] && [ -n "$window_id" ] && [ "$pane_dead" = 0 ] || \
+  if [ -z "$pane_id" ] || [ -z "$window_id" ] || [ "$pane_dead" != 0 ]; then
     orchestrator_die "tmux returned an invalid or dead pane"
+  fi
 
   reg_pane_id=$pane_id
   reg_pane_pid=$pane_pid
@@ -151,8 +155,9 @@ acknowledge() {
   local_head=$(git -C "$ORCHESTRATOR_REPO" rev-parse HEAD)
   tracked_head=$(git -C "$ORCHESTRATOR_REPO" rev-parse \
     "refs/remotes/$ORCHESTRATOR_REMOTE/$ORCHESTRATOR_BRANCH")
-  [ "$local_head" = "$response" ] && [ "$tracked_head" = "$response" ] || \
+  if [ "$local_head" != "$response" ] || [ "$tracked_head" != "$response" ]; then
     orchestrator_die "response head does not match local and fetched remote-tracking heads"
+  fi
   orchestrator_atomic_write "$ORCHESTRATOR_PROCESSED_FILE" "$response"
   rm -f "$ORCHESTRATOR_NOTIFIED_FILE"
   printf 'acknowledged processed head %s\n' "$response"
