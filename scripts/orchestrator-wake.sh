@@ -16,10 +16,8 @@ fi
 case "$agent" in
   '' | *[!a-z0-9-]* | -*) orchestrator_die "invalid agent name" ;;
 esac
-if [ "$agent" != orchestrator ]; then
-  mkdir -p "$ORCHESTRATOR_STATE_DIR/panes"
-  ORCHESTRATOR_REGISTRATION_FILE="$ORCHESTRATOR_STATE_DIR/panes/$agent"
-fi
+mkdir -p "$ORCHESTRATOR_STATE_DIR/panes"
+ORCHESTRATOR_REGISTRATION_FILE="$ORCHESTRATOR_STATE_DIR/panes/$agent"
 
 reg_version=
 reg_pane_id=
@@ -72,14 +70,14 @@ load_registration() {
 registration_marker() {
   printf 'v1 repo=%s harness=%s pane-pid=%s' \
     "$ORCHESTRATOR_REPO_NAME" "$reg_harness" "$reg_pane_pid"
-  [ "$agent" = orchestrator ] || printf ' agent=%s' "$agent"
+  printf ' agent=%s' "$agent"
 }
 
 validate_registration() {
   load_registration
   fields=$(
     "$ORCHESTRATOR_TMUX" display-message -p -t "$reg_pane_id" \
-      '#{pane_id}|#{pane_pid}|#{pane_tty}|#{pane_dead}|#{pane_current_command}|#{session_id}|#{window_id}|#{@orchestrator_root}'
+      '#{pane_id}|#{pane_pid}|#{pane_tty}|#{pane_dead}|#{pane_current_command}|#{session_id}|#{window_id}|#{@orchestrator_agent}'
   ) || orchestrator_die "registered tmux pane is unavailable: $reg_pane_id"
 
   IFS='|' read -r pane_id pane_pid pane_tty pane_dead current_command \
@@ -126,7 +124,7 @@ EOF
   reg_registered_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
   "$ORCHESTRATOR_TMUX" set-option -p -t "$reg_pane_id" \
-    @orchestrator_root "$(registration_marker)"
+    @orchestrator_agent "$(registration_marker)"
   content="version=1
 pane_id=$reg_pane_id
 pane_pid=$reg_pane_pid
@@ -142,12 +140,6 @@ registered_at=$reg_registered_at"
     "$reg_pane_id" "$reg_harness" "$reg_pane_pid"
 }
 
-wake_message() {
-  previous=$1
-  remote=$2
-  printf '%s\n' "# orchestrator-wake $remote after $previous: $ORCHESTRATOR_REMOTE/$ORCHESTRATOR_BRANCH advanced. Acquire the repository writer lease, fetch the exact remote range, reconcile collaborator input, record the operator trail, commit, fetch and rebase again, push normally, verify the hosted head, acknowledge the checkpoint, and release the lease."
-}
-
 deliver_message() {
   message=$1
   validate_registration
@@ -157,47 +149,29 @@ deliver_message() {
   printf '%s\n' "$reg_pane_id"
 }
 
-notify_pane() {
-  previous=$1
-  remote=$2
-  orchestrator_valid_sha "$previous" || orchestrator_die "invalid previous head"
-  orchestrator_valid_sha "$remote" || orchestrator_die "invalid remote head"
-  deliver_message "$(wake_message "$previous" "$remote")"
-}
-
-acknowledge() {
-  [ "$agent" = orchestrator ] || orchestrator_die "peer replies use agent-channel.py acknowledge"
-  response=$1
-  orchestrator_valid_sha "$response" || orchestrator_die "invalid response head"
-  local_head=$(git -C "$ORCHESTRATOR_REPO" rev-parse HEAD)
-  tracked_head=$(git -C "$ORCHESTRATOR_REPO" rev-parse \
-    "refs/remotes/$ORCHESTRATOR_REMOTE/$ORCHESTRATOR_BRANCH")
-  if [ "$local_head" != "$response" ] || [ "$tracked_head" != "$response" ]; then
-    orchestrator_die "response head does not match local and fetched remote-tracking heads"
-  fi
-  orchestrator_atomic_write "$ORCHESTRATOR_PROCESSED_FILE" "$response"
-  rm -f "$ORCHESTRATOR_NOTIFIED_FILE"
-  printf 'acknowledged processed head %s\n' "$response"
-}
-
 unregister() {
   if [ -f "$ORCHESTRATOR_REGISTRATION_FILE" ]; then
     load_registration
     "$ORCHESTRATOR_TMUX" set-option -p -u -t "$reg_pane_id" \
-      @orchestrator_root 2>/dev/null || true
+      @orchestrator_agent 2>/dev/null || true
   fi
   rm -f "$ORCHESTRATOR_REGISTRATION_FILE"
-  [ "$agent" != orchestrator ] || rm -f "$ORCHESTRATOR_NOTIFIED_FILE"
   printf 'unregistered agent %s\n' "$agent"
 }
 
 case "${1:-}" in
-  message)
+  message|dry-run)
     [ "$#" -eq 3 ] || orchestrator_die "usage: -a AGENT message ID COMMIT"
     case "$2" in '' | *[!0-9a-f]*) orchestrator_die "invalid message ID" ;; esac
     [ "${#2}" -eq 32 ] || orchestrator_die "invalid message ID"
     orchestrator_valid_sha "$3" || orchestrator_die "invalid message commit"
-    deliver_message "# orchestrator-message $2 $3 for $agent: Read AGENT-PROTOCOL.md and the complete committed instruction. This is a locator, not expanded authority. Reply in the repository and acknowledge this message after verified publication."
+    notice="# orchestrator-message $2 $3 for $agent: Read AGENT-PROTOCOL.md and the complete committed instruction. This is a locator, not expanded authority. Reply in the repository and acknowledge this message after verified publication."
+    if [ "$1" = dry-run ]; then
+      validate_registration
+      printf '%s\n' "$notice"
+    else
+      deliver_message "$notice"
+    fi
     ;;
   register)
     [ "$#" -eq 3 ] || orchestrator_die "usage: $(basename -- "$0") register PANE HARNESS"
@@ -205,40 +179,13 @@ case "${1:-}" in
     ;;
   status)
     validate_registration
-    if [ -f "$ORCHESTRATOR_PROCESSED_FILE" ]; then
-      processed=$(sed -n '1p' "$ORCHESTRATOR_PROCESSED_FILE")
-    else
-      processed=none
-    fi
-    if [ -f "$ORCHESTRATOR_NOTIFIED_FILE" ]; then
-      notified=$(sed -n '1p' "$ORCHESTRATOR_NOTIFIED_FILE")
-    else
-      notified=none
-    fi
     printf 'registered pane=%s harness=%s since=%s\n' \
       "$reg_pane_id" "$reg_harness" "$reg_registered_at"
-    printf 'processed=%s\nnotified=%s\n' "$processed" "$notified"
-    ;;
-  dry-run)
-    [ "$#" -eq 3 ] || orchestrator_die "usage: $(basename -- "$0") dry-run PREVIOUS REMOTE"
-    orchestrator_valid_sha "$2" || orchestrator_die "invalid previous head"
-    orchestrator_valid_sha "$3" || orchestrator_die "invalid remote head"
-    validate_registration
-    printf 'target=%s harness=%s\n' "$reg_pane_id" "$reg_harness"
-    wake_message "$2" "$3"
-    ;;
-  notify)
-    [ "$#" -eq 3 ] || orchestrator_die "usage: $(basename -- "$0") notify PREVIOUS REMOTE"
-    notify_pane "$2" "$3"
-    ;;
-  acknowledge)
-    [ "$#" -eq 2 ] || orchestrator_die "usage: $(basename -- "$0") acknowledge RESPONSE_HEAD"
-    acknowledge "$2"
     ;;
   unregister)
     unregister
     ;;
   *)
-    orchestrator_die "usage: $(basename -- "$0") [-a AGENT] register|status|dry-run|notify|message|acknowledge|unregister"
+    orchestrator_die "usage: $(basename -- "$0") [-a AGENT] register|status|dry-run|message|unregister"
     ;;
 esac

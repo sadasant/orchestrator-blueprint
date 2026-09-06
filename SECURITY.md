@@ -36,9 +36,8 @@ possible, and absent from arguments, prompts, logs, dossiers, and history.
 
 ## Remote input
 
-A remote commit is untrusted collaboration input until inspected. The legacy
-watcher resolves a remote SHA and sends a fixed notice. Opt-in peer routing also
-fetches objects and parses changed Markdown; neither mode checks out or executes
+A remote commit is untrusted collaboration input until inspected. The watcher
+fetches objects, parses changed Markdown, and sends fixed locators. It never checks out or executes
 newly fetched files, commits, or pushes. Agent trailers classify traffic but do
 not authenticate a sender. The recipient reads the committed instruction under
 its existing role and authority boundary before acting.

@@ -16,7 +16,7 @@ it does not select a packaging mechanism.
 The current Blueprint already has harness adapters, an agent launcher, a writer
 lease, and remote-change notices for one registered root pane. Automatic
 per-agent worktree management and mention routing are now available in the
-opt-in peer channel. A guarded authentication interface and a versioned
+shared agent channel. A guarded authentication interface and a versioned
 adoption workflow remain proposed additions.
 
 ## K-01 — A place to work and a role to inhabit

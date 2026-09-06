@@ -7,8 +7,8 @@
 
 This repository is a reproducible pattern for a persistent root Orchestrator.
 Git holds durable working state. tmux holds live terminal sessions. Small local
-scripts detect remote changes, wake one explicitly registered pane, coordinate
-one repository writer, and preserve evidence of what happened.
+scripts detect remote changes, route messages to explicitly registered panes, coordinate
+shared publication, and preserve evidence of what happened.
 
 The blueprint is harness-neutral. Codex, Claude Code, Pi, and Prime Agent are
 included as adapters; another terminal harness can be added with one executable
@@ -31,7 +31,7 @@ identity, authority model, or durable state.
 - Git
 - tmux
 - POSIX `sh`
-- Python 3 for dossier reconciliation
+- Python 3 for routing and dossier reconciliation
 - At least one supported terminal agent harness
 
 The watcher uses the checkout's ordinary Git authentication. Configure SSH, a
@@ -43,26 +43,28 @@ unattended polling. The blueprint does not mint, store, or broker credentials.
 1. Create a repository from this blueprint and clone it to the target host.
 2. Customize `PERSONA.md`, `DECISIONS.md`, and `WORK-CHARTERS.md` without adding
    secrets or unnecessary personal information.
-3. Start the chosen root harness inside tmux:
+3. Create the root's attributed worktree and start the chosen harness there:
 
    ```sh
+   scripts/agent-channel.py worktree orchestrator
+   cd PRINTED_WORKTREE_PATH
    tmux new-session -s orchestrator
    codex
-   # or: claude
-   # or: pi
-   # or: prime-agent
+   # or: claude, pi, prime-agent
    ```
 
-4. From that pane, register its exact tmux identity:
+4. Once the CLI is ready, register its exact pane from another terminal:
 
    ```sh
-   scripts/orchestrator-wake.sh register "$TMUX_PANE" codex
-   scripts/orchestrator-wake.sh status
+   scripts/orchestrator-wake.sh -a orchestrator register PANE codex
+   scripts/orchestrator-wake.sh -a orchestrator status
    ```
 
-5. Initialize the watcher state with one manual run:
+5. Review existing input, then initialize at the full remote commit SHA through
+   which work is reconciled. The first poll routes commits after that base:
 
    ```sh
+   scripts/agent-channel.py initialize BASE_SHA
    scripts/watch-remote.sh
    ```
 
@@ -78,9 +80,9 @@ Read `AUTOMATION.md` before enabling unattended wake delivery. Read
 ## Peer correspondence
 
 The [agent protocol][agent-protocol] implements separate agent worktrees,
-registered tmux recipients, file mentions, and durable reply receipts. Enable
-it explicitly after reviewing its activation and recovery procedure. Existing
-single-root watchers retain their behavior by default.
+registered tmux recipients, file mentions, and durable reply receipts. This is
+the routing system for root and peers. Review its initialization and transition
+procedure before updating an existing instance.
 
 ## Repository map
 

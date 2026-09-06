@@ -44,6 +44,8 @@ class ChannelTest(unittest.TestCase):
         self.write("README.md", "# Fixture\n")
         self.head = self.commit("seed")
         self.push()
+        with redirect_stdout(io.StringIO()):
+            channel.initialize(self.repo, self.state, self.head, "origin", "main")
         self.fake = self.base / "tmux"
         self.fake.write_text('''#!/usr/bin/env python3
 import json, os, sys
@@ -56,7 +58,7 @@ if a[0]=='display-message':
  if (state/('missing'+p)).exists(): sys.exit(1)
  pid='999' if (state/('changed'+p)).exists() else '123'
  result=p+'|'+pid+'|/dev/pts/1|0|python|$1|@1'
- if '@orchestrator_root' in a[-1]:
+ if '@orchestrator_agent' in a[-1]:
   f=state/('marker'+p)
   result+='|'+(f.read_text() if f.exists() else '')
  print(result)
@@ -114,7 +116,7 @@ else: sys.exit(2)
         p = self.state / "typed"
         return [json.loads(line) for line in p.read_text().splitlines()] if p.exists() else []
 
-    def test_first_poll_initializes_and_unchanged_poll_is_silent(self):
+    def test_initialized_unchanged_poll_is_silent(self):
         self.poll(); self.poll()
         self.assertEqual(self.data()["events"], [])
         self.assertEqual(self.typed(), [])
@@ -245,20 +247,42 @@ else: sys.exit(2)
             self.cmd(str(self.repo / 'scripts/orchestrator-wake.sh'), '-a', 'billing', 'status')
             self.assertTrue((expected / 'panes/billing').exists())
 
-    def test_opt_in_watcher_dispatch_and_legacy_no_change(self):
+    def test_watcher_routes_without_a_feature_flag(self):
         watcher = str(self.repo / 'scripts/watch-remote.sh')
         self.cmd(watcher)
-        self.assertTrue((self.state / 'processed-head').exists())
+        self.write('ask.md', '@billing hello\n'); self.commit('ask'); self.push()
+        self.cmd(watcher)
+        self.assertEqual(self.data()['events'][0]['status'], 'pending')
+        self.register(); self.cmd(watcher)
+        self.assertEqual(self.data()['events'][0]['status'], 'sent')
+        self.assertFalse((self.state / 'processed-head').exists())
+
+    def test_explicit_transition_preserves_unhandled_range_and_old_receipts(self):
+        (self.state / 'agent-channel.json').unlink()
+        self.write('ask.md', '@billing unfinished\n'); pending = self.commit('ask'); self.push()
+        (self.state / 'processed-head').write_text(self.head)
+        (self.state / 'notified-head').write_text(pending)
+        with self.assertRaises(ValueError): self.poll()
         self.assertFalse((self.state / 'agent-channel.json').exists())
-        with patch.dict(os.environ, {'ORCHESTRATOR_AGENT_ROUTING': '1'}):
-            self.cmd(watcher)
-            self.write('ask.md', '@billing hello\n'); self.commit('ask'); self.push()
-            self.cmd(watcher)
-            self.assertEqual(self.data()['events'][0]['status'], 'pending')
-            self.register()
-            self.cmd(watcher)
-            self.assertEqual(self.data()['events'][0]['status'], 'sent')
-        self.assertEqual((self.state / 'processed-head').read_text().strip(), self.head)
+        with redirect_stdout(io.StringIO()):
+            channel.initialize(self.repo, self.state, self.head, 'origin', 'main')
+        self.poll()
+        self.assertEqual(self.data()['events'][0]['commit'], pending)
+        self.assertEqual(self.data()['events'][0]['status'], 'pending')
+        self.assertEqual((self.state / 'notified-head').read_text(), pending)
+        before = (self.state / 'agent-channel.json').read_bytes()
+        with self.assertRaises(ValueError):
+            channel.initialize(self.repo, self.state, pending, 'origin', 'main')
+        self.assertEqual((self.state / 'agent-channel.json').read_bytes(), before)
+
+    def test_initialization_rejects_invalid_or_unpublished_base(self):
+        (self.state / 'agent-channel.json').unlink()
+        with self.assertRaises(ValueError):
+            channel.initialize(self.repo, self.state, 'HEAD', 'origin', 'main')
+        self.write('local.md', 'unpublished\n'); local = self.commit('local')
+        with self.assertRaises(subprocess.CalledProcessError):
+            channel.initialize(self.repo, self.state, local, 'origin', 'main')
+        self.assertFalse((self.state / 'agent-channel.json').exists())
 
     def test_end_to_end_reply_rebase_publish_and_acknowledge(self):
         self.poll(); self.register()
@@ -293,16 +317,25 @@ else: sys.exit(2)
         with self.assertRaises(subprocess.CalledProcessError): self.poll()
         self.assertEqual(self.data()['cursor'], 'f' * 40)
 
-    def test_legacy_root_registration_and_notify_still_work(self):
+    def test_root_uses_the_same_registration_delivery_and_reply_protocol(self):
         self.register('orchestrator')
         wake = str(self.repo / 'scripts/orchestrator-wake.sh')
-        self.cmd(wake, 'notify', 'a' * 40, 'b' * 40)
-        self.assertTrue(self.typed()[0][-1].startswith('# orchestrator-wake '))
-        self.register('billing', '%2')
-        (self.state / 'notified-head').write_text('a' * 40)
-        self.cmd(wake, '-a', 'billing', 'unregister')
-        self.assertTrue((self.state / 'notified-head').exists())
-
+        self.assertTrue((self.state / 'panes/orchestrator').exists())
+        self.assertFalse((self.state / 'root-pane').exists())
+        notice = self.cmd(wake, 'dry-run', 'a' * 32, 'b' * 40)
+        self.assertTrue(notice.startswith('# orchestrator-message '))
+        self.assertEqual(self.typed(), [])
+        self.write('root.md', 'unaddressed input\n'); self.commit('input'); self.push(); self.poll()
+        event = self.data()['events'][0]
+        self.assertEqual(event['recipient'], 'orchestrator')
+        self.assertEqual(event['status'], 'sent')
+        self.write('root.md', 'unaddressed input\n\nReply recorded.\n')
+        reply = self.commit('reply', agent='orchestrator', reply=event['id']); self.push()
+        data = self.data()
+        channel.acknowledge(self.repo, data, event['id'], reply, 'origin', 'main')
+        self.assertEqual(data['events'][0]['status'], 'acknowledged')
+        self.cmd(wake, 'unregister')
+        self.assertFalse((self.state / 'panes/orchestrator').exists())
 
     def test_merge_introduced_messages_are_not_lost_or_duplicated(self):
         self.git('checkout', '-q', '-b', 'topic')
@@ -320,6 +353,7 @@ else: sys.exit(2)
 
     def test_symlink_state_and_duplicate_authority_rows_are_rejected(self):
         external = self.base / 'external'; external.write_text('{}')
+        (self.state / 'agent-channel.json').unlink()
         (self.state / 'agent-channel.json').symlink_to(external)
         with self.assertRaises(ValueError): self.data()
         with self.assertRaises(ValueError): channel.save_state(self.state, {'version': 1})

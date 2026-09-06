@@ -5,10 +5,10 @@
 > shared repository; delivery and completion are tracked separately so an
 > unavailable session does not silently lose work.
 
-## Enable deliberately
+## One correspondence system
 
-This is an opt-in implementation of the [shared kernel][kernel]. The existing
-single-root watcher remains the default. The channel uses ordinary configured
+This implements the [shared kernel][kernel]. Root and peers use the same
+routing, delivery, and acknowledgement protocol. The channel uses ordinary configured
 Git authentication; it does not implement the proposed guarded credential
 interface or issue credentials. Linked worktrees share Git configuration and may
 inherit configured authentication. They isolate files and indexes, not account
@@ -33,8 +33,7 @@ creates an adjacent agent worktree on `agents/billing`, and prints its path.
 It preserves an existing branch and refuses a mismatched worktree. Custom hooks
 require explicit composition before automatic setup proceeds.
 
-The root should also use `worktree orchestrator` when participating in peer
-routing. Each generated worktree has its own `orchestrator.agent` Git setting
+The root also uses `worktree orchestrator`. Each generated worktree has its own `orchestrator.agent` Git setting
 and prepare-commit-msg hook. Ordinary commits receive an `Orchestrator-Agent`
 trailer automatically. A shared main checkout keeps its existing identity and
 hooks. Do not remove the agent trailer: it distinguishes ordinary agent work
@@ -60,26 +59,54 @@ checks detect changed pane metadata, but cannot prove that a same-command child
 process is still the same conversation. Direct tmux access remains available to
 collaborators and peers through their existing terminal clients.
 
-## Activate file mentions
+## Initialize and start polling
 
-First reconcile existing work. The first peer-mode poll starts at the current
-remote head; it does not import old legacy notifications or replay history.
-
-```sh
-ORCHESTRATOR_AGENT_ROUTING=1 scripts/watch-remote.sh
-```
-
-Subsequent polls route new commits and retry definitely undelivered messages,
-including when the remote head has not changed. To retain this mode in the
-existing scheduler, install with the same setting:
+Every new channel requires an explicit starting commit. Fetch the configured
+branch, review existing work, and select the full SHA through which no work
+needs to be routed. Later commits will be scanned on the first poll:
 
 ```sh
-ORCHESTRATOR_AGENT_ROUTING=1 scripts/install-watcher.sh
+scripts/agent-channel.py initialize BASE_SHA
+scripts/watch-remote.sh
+scripts/install-watcher.sh
 ```
 
-Installing or switching modes is an operator action, not a consequence of
-merging this implementation. The watcher fetches objects but never checks out
-or executes newly fetched code. Deploy reviewed script updates explicitly.
+Use the current fetched head for a fresh instance only after reviewing it. The
+initializer verifies that the base belongs to the configured remote history and
+refuses to overwrite an existing ledger. Polling without initialization fails;
+it never silently treats the latest head as handled.
+
+Polls route new commits and retry definitely undelivered messages, including
+when the remote head has not changed. The watcher fetches objects but never
+checks out or executes newly fetched code. Deploy reviewed script updates
+explicitly; merging an implementation does not activate a running instance.
+
+## Transition an existing instance
+
+1. Stop its scheduled watcher and finish or pause active publication under the
+   writer lease. Back up local runtime state, including pending receipts, before
+   updating the reviewed scripts. Keep the backup outside Git.
+2. Inspect unfinished root work and any published response. In the old state,
+   `processed-head` records handled work; `notified-head` only records a notice
+   submitted to a pane. Never use the latter as proof of completion. Resolve
+   an already submitted turn before replaying its input, so external actions
+   are not repeated merely because transport changed.
+3. If `agent-channel.json` already exists, retain it unchanged: its cursor and
+   every pending, sent, uncertain, or acknowledged event remain in use. Do not
+   reinitialize. Otherwise choose the last actually reconciled commit and run
+   `initialize BASE_SHA`. Unhandled commits after that base become durable
+   messages on the next poll. The old receipt files are left intact for review;
+   the running channel neither reads nor updates them.
+4. Re-register every running CLI, including root, using `-a AGENT register`.
+   All registrations now live in `panes/AGENT` and use the same agent marker.
+   An old `root-pane` file is not a usable registration. Keep agent worktrees
+   intact and update their reviewed scripts and role instructions as needed.
+5. Inspect `status`, run a manual poll, and verify pending messages and pane
+   targets. Reinstall the scheduler to replace its generated launcher. Record
+   the chosen base or retained ledger and unresolved work in the operator trail.
+
+There is no routing-mode switch or root-only fallback. Root remains addressed
+as `orchestrator`; its role determines what it does with the same kind of message.
 
 ## What addresses someone
 
@@ -176,8 +203,7 @@ also needs this explicit review even if the role is subsequently re-added.
 
 State lives in a mode-0600 local agent-channel.json beside the existing runtime
 state. Its scan cursor and per-recipient events are saved together before any
-submission. The cursor means scanned, not answered. Legacy processed-head and
-notified-head remain separate. Missing recipients do not block other recipients,
+submission. The cursor means scanned, not answered. Missing recipients do not block other recipients,
 and lease contention never authorizes deleting someone else's lock.
 
 Pending work survives watcher restarts on this host. This first implementation

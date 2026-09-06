@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Worktrees and durable peer messages for an opt-in repository channel."""
+"""Worktrees and durable peer messages for the repository channel."""
 from __future__ import annotations
 
 import argparse
@@ -210,9 +210,7 @@ def route(repo, commit, known):
 
 def scan(repo, data, head, now):
     require(SHA.fullmatch(head), "invalid remote head")
-    if data["cursor"] is None:
-        data["cursor"] = head
-        return  # Explicit activation starts here; it does not replay all history.
+    require(data["cursor"] is not None, "channel not initialized; run initialize BASE_SHA after reviewing existing work")
     git(repo, "merge-base", "--is-ancestor", data["cursor"], head)
     known = agents(repo, head)
     commits = git(repo, "rev-list", "--reverse", "--first-parent", f'{data["cursor"]}..{head}').splitlines()
@@ -259,6 +257,17 @@ def deliver(repo, state, data, known):
         event["error"] = "" if result.returncode == 0 else "submission outcome uncertain; inspect before retry"
         save_state(state, data)
     save_state(state, data)
+
+
+def initialize(repo, state, base, remote, branch):
+    require(SHA.fullmatch(base), "initialization requires a full reviewed base SHA")
+    require(not (state / "agent-channel.json").exists()
+            and not (state / "agent-channel.json").is_symlink(), "channel already exists; preserve its cursor and receipts")
+    git(repo, "fetch", "--quiet", remote, f"refs/heads/{branch}:refs/remotes/{remote}/{branch}")
+    head = git(repo, "rev-parse", f"refs/remotes/{remote}/{branch}")
+    git(repo, "merge-base", "--is-ancestor", base, head)
+    save_state(state, {"version": 1, "cursor": base, "events": []})
+    print(json.dumps({"cursor": base}))
 
 
 def poll(repo, state, remote, branch):
@@ -322,6 +331,7 @@ def main():
     parser.add_argument("--repo", default=str(Path(__file__).resolve().parents[1]))
     parser.add_argument("--lease-held", action="store_true", help="caller already holds this repository's writer lease")
     commands = parser.add_subparsers(dest="command", required=True)
+    init = commands.add_parser("initialize"); init.add_argument("base")
     commands.add_parser("poll")
     commands.add_parser("status")
     worktree = commands.add_parser("worktree"); worktree.add_argument("name")
@@ -344,6 +354,8 @@ def main():
     with lease(state, args.lease_held):
         if args.command == "poll":
             poll(repo, state, remote, branch)
+        elif args.command == "initialize":
+            initialize(repo, state, args.base, remote, branch)
         elif args.command == "worktree":
             print(ensure_worktree(repo, args.name, remote, branch))
         else:

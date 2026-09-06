@@ -20,7 +20,6 @@ shell_quote() {
 }
 
 launcher_content="#!/bin/sh
-export ORCHESTRATOR_AGENT_ROUTING=$(shell_quote "${ORCHESTRATOR_AGENT_ROUTING:-0}")
 export ORCHESTRATOR_STATE_DIR=$(shell_quote "$ORCHESTRATOR_STATE_DIR")
 export ORCHESTRATOR_REMOTE=$(shell_quote "$ORCHESTRATOR_REMOTE")
 export ORCHESTRATOR_BRANCH=$(shell_quote "$ORCHESTRATOR_BRANCH")

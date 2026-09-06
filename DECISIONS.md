@@ -44,11 +44,13 @@ lease still protects shared-checkout edits, worktree setup, and the fetch,
 reconcile, publish, verify, and acknowledge sequence. This refines D-005 for
 peer collaboration without allowing concurrent shared-index writes.
 
-### D-008 — Opt-in peer correspondence
+### D-008 — One correspondence system
 
 The [agent protocol][agent-protocol] adds named pane registrations, commit-based
-routing, and per-recipient delivery receipts. Legacy root-only wakes remain the
-default. Scanned, submitted, and acknowledged are distinct states; uncertain
+routing, and per-recipient delivery receipts for root and peers alike. An
+explicit reviewed baseline initializes new state; existing receipts survive
+transitions. There is no compatibility routing switch. Scanned, submitted, and
+acknowledged are distinct states; uncertain
 submission requires inspection before an explicit retry. The implementation
 does not select a credential broker or grant publication authority.
 

@@ -1,117 +1,72 @@
 # Repository wake automation
 
-> **Brief:** A silent local watcher detects remote changes and sends one fixed
-> SHA notice to an explicitly registered tmux pane. The root harness alone
-> fetches, reconciles, publishes, verifies, and acknowledges work under the
-> writer lease.
-
-## Peer-routing mode
-
-This document describes the default legacy root route. With
-`ORCHESTRATOR_AGENT_ROUTING=1`, the watcher instead uses the [agent protocol][peers]:
-it fetches objects, scans new commits, persists recipient events, and retries
-pending delivery under the same writer lease. It does not advance the legacy
-root checkpoint or check out fetched code. See that protocol before switching
-an existing instance; its first poll establishes a new scan baseline.
+> **Brief:** One local watcher scans committed input, records messages for each
+> recipient, and sends fixed locators to registered tmux panes. Root and peers
+> publish replies through the same protocol.
 
 ## Boundary
 
-The watcher:
+The watcher fetches the configured remote branch, parses changed Markdown,
+persists recipient events and a scan cursor together, validates exact pane
+registrations, and submits fixed locators. It retries pending delivery even
+when the remote head is unchanged. It does not check out or execute fetched
+files, start harnesses, edit repository files, commit, push, or issue credentials.
 
-- resolves the configured remote branch without fetching into the checkout;
-- compares it with the last acknowledged checkpoint;
-- validates one exact tmux pane registration;
-- submits one fixed notice followed by the tmux Enter key;
-- records only local SHA, pane, and status receipts.
-
-It does not inspect changed content, execute remote files, start a root harness,
-edit the repository, commit, push, or handle credentials.
-
-## Fixed wake message
-
-```text
-# orchestrator-wake REMOTE after PREVIOUS: REMOTE_NAME/BRANCH advanced. Acquire
-the repository writer lease, fetch the exact remote range, reconcile
-collaborator input, record the operator trail, commit, fetch and rebase again,
-push normally, verify the hosted head, acknowledge the checkpoint, and release
-the lease.
-```
-
-The leading `#` makes accidental delivery to an ordinary empty shell prompt a
-comment. Exact pane validation is still mandatory.
+Follow [the agent protocol][agents] for initialization, transition from an older
+instance, addressing, replies, and recovery. Scanning, submission, and verified
+reply publication are separate states; a scan cursor is never proof of completion.
 
 ## Local state
 
-By default, local state lives under:
+The default namespace uses the main checkout's basename, shared by its worktrees:
 
 ```text
 ${XDG_STATE_HOME:-$HOME/.local/state}/<repository-name>/
-  processed-head
-  notified-head
-  root-pane
+  agent-channel.json
+  panes/
+    orchestrator
+    billing
   run.lock/
-  watcher.log
 ```
 
-`processed-head` is the hosted response already handled by the root.
-`notified-head` suppresses duplicate delivery of one pending remote head.
-`root-pane` contains tmux identity and declared harness fields, never captured
-pane content or credentials.
+The ledger retains pending messages and publication receipts. Registrations bind
+pane ID, pane PID, TTY, current command, session ID, window ID, declared harness,
+and a marker identifying the repository and agent. Re-register after a change.
+No pane contents or credentials belong in these files.
 
-## Registration
+## Registration and validation
 
-Start the intended root harness inside tmux. From the same pane:
+Once the intended CLI is ready, register its exact pane. The default agent name
+is `orchestrator`; `-a AGENT` selects any other recipient:
 
 ```sh
-scripts/orchestrator-wake.sh register "$TMUX_PANE" HARNESS
-scripts/orchestrator-wake.sh status
+scripts/orchestrator-wake.sh -a orchestrator register PANE HARNESS
+scripts/orchestrator-wake.sh -a orchestrator status
+scripts/orchestrator-wake.sh -a orchestrator dry-run MESSAGE_ID COMMIT
 ```
 
-The registration binds pane ID, pane PID, TTY, current command, session ID,
-window ID, harness name, and an exact tmux marker. If any observed identity
-changes, delivery fails closed until explicit re-registration.
-
-Exercise validation without typing into the pane:
-
-```sh
-scripts/orchestrator-wake.sh dry-run \
-  0000000000000000000000000000000000000000 \
-  1111111111111111111111111111111111111111
-```
-
-Disable delivery with:
-
-```sh
-scripts/orchestrator-wake.sh unregister
-```
+The dry run validates the same 32-character message ID, 40-character commit SHA,
+and registration as delivery, then prints the locator without typing it. The
+leading `#` in a locator makes accidental delivery to an empty shell a comment;
+exact registration is still required. `unregister` disables that recipient's
+delivery, leaving its messages pending.
 
 ## Watcher lifecycle
 
-First verify ordinary non-interactive Git authentication and initialize state:
+Verify non-interactive Git authentication, review the starting commit, and run:
 
 ```sh
 GIT_TERMINAL_PROMPT=0 git ls-remote origin refs/heads/main
+scripts/agent-channel.py initialize BASE_SHA
 scripts/watch-remote.sh
-```
-
-Then install the host scheduler:
-
-```sh
 scripts/install-watcher.sh
 ```
 
-On macOS this generates and loads a user LaunchAgent. On Linux with systemd it
-generates and enables a user service and timer. Generated files contain local
-paths and remain outside the repository.
+Initialization is performed once; existing ledgers must be retained. On macOS,
+installation generates and loads a user LaunchAgent. On Linux with systemd it
+generates and enables a user service and timer. Generated launchers and logs stay
+outside Git. Installation and reviewed script deployment are explicit operator
+actions. Reply acknowledgement belongs to `agent-channel.py acknowledge`, for
+every recipient, after verified publication under the writer lease.
 
-After the root publishes and fetches the verified response head:
-
-```sh
-scripts/orchestrator-wake.sh acknowledge RESPONSE_HEAD
-```
-
-Acknowledgement requires local `HEAD` and the configured remote-tracking branch
-to equal the supplied commit. Only then should the root release the writer
-lease.
-
-[peers]: ./AGENT-PROTOCOL.md
+[agents]: ./AGENT-PROTOCOL.md

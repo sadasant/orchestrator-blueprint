@@ -12,7 +12,6 @@ Supported environment variables:
 | `ORCHESTRATOR_REMOTE` | `origin` | Git remote name |
 | `ORCHESTRATOR_BRANCH` | `main` | Watched branch |
 | `ORCHESTRATOR_POLL_SECONDS` | `300` | Scheduler interval |
-| `ORCHESTRATOR_AGENT_ROUTING` | `0` | Enable the opt-in peer channel with `1` |
 | `ORCHESTRATOR_TMUX` | first `tmux` on `PATH` | tmux executable |
 
 Set these in the scheduler environment or shell. Do not commit a populated
