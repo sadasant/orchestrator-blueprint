@@ -7,15 +7,17 @@
 
 ## Proposal status
 
-This document proposes a direction for discussion. It does not change the
-current runtime, grant credentials, launch agents, or supersede adopted
-decisions. Here, **kernel** means the small shared set of collaboration
-conventions and supporting scripts; it does not select a packaging mechanism.
+This direction was agreed during review of PR #1. The [agent protocol][peers]
+implements the first worktree, registration, routing, and reply slice.
+Credential brokering and versioned adoption remain design work. Here, **kernel**
+means the small shared set of collaboration conventions and supporting scripts;
+it does not select a packaging mechanism.
 
 The current Blueprint already has harness adapters, an agent launcher, a writer
 lease, and remote-change notices for one registered root pane. Automatic
-per-agent worktree management, mention routing, a guarded authentication
-interface, and a versioned adoption workflow are proposed additions.
+per-agent worktree management and mention routing are now available in the
+opt-in peer channel. A guarded authentication interface and a versioned
+adoption workflow remain proposed additions.
 
 ## K-01 — A place to work and a role to inhabit
 
@@ -153,3 +155,5 @@ After this review, the next PR can specify one small end-to-end path: give an
 agent a worktree, register its session, address it from a file, receive its reply,
 and preserve that reply through concurrent publication. Acceptance should cover
 an unavailable recipient and a restarted instance as well as successful delivery.
+
+[peers]: ../AGENT-PROTOCOL.md

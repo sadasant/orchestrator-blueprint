@@ -5,6 +5,15 @@
 > fetches, reconciles, publishes, verifies, and acknowledges work under the
 > writer lease.
 
+## Peer-routing mode
+
+This document describes the default legacy root route. With
+`ORCHESTRATOR_AGENT_ROUTING=1`, the watcher instead uses the [agent protocol][peers]:
+it fetches objects, scans new commits, persists recipient events, and retries
+pending delivery under the same writer lease. It does not advance the legacy
+root checkpoint or check out fetched code. See that protocol before switching
+an existing instance; its first poll establishes a new scan baseline.
+
 ## Boundary
 
 The watcher:
@@ -104,3 +113,5 @@ scripts/orchestrator-wake.sh acknowledge RESPONSE_HEAD
 Acknowledgement requires local `HEAD` and the configured remote-tracking branch
 to equal the supplied commit. Only then should the root release the writer
 lease.
+
+[peers]: ./AGENT-PROTOCOL.md

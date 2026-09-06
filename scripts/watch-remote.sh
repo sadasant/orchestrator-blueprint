@@ -6,6 +6,13 @@ set -eu
 orchestrator_require git
 orchestrator_prepare_state
 
+# Peer routing has separate durable scan/delivery state and acquires this lease.
+case "${ORCHESTRATOR_AGENT_ROUTING:-0}" in
+  1) exec python3 "$ORCHESTRATOR_REPO/scripts/agent-channel.py" poll ;;
+  0) ;;
+  *) orchestrator_die "ORCHESTRATOR_AGENT_ROUTING must be 0 or 1" ;;
+esac
+
 log() {
   printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$ORCHESTRATOR_LOG_FILE"
 }
@@ -21,7 +28,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-[ -d "$ORCHESTRATOR_REPO/.git" ] || {
+git -C "$ORCHESTRATOR_REPO" rev-parse --git-dir >/dev/null 2>&1 || {
   log "blocked: repository checkout is unavailable"
   exit 1
 }

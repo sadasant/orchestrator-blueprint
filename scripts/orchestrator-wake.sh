@@ -7,6 +7,20 @@ orchestrator_require git
 [ -n "$ORCHESTRATOR_TMUX" ] || orchestrator_die "missing required command: tmux"
 orchestrator_prepare_state
 
+agent=orchestrator
+if [ "${1:-}" = -a ]; then
+  [ "$#" -ge 3 ] || orchestrator_die "usage: -a AGENT COMMAND"
+  agent=$2
+  shift 2
+fi
+case "$agent" in
+  '' | *[!a-z0-9-]* | -*) orchestrator_die "invalid agent name" ;;
+esac
+if [ "$agent" != orchestrator ]; then
+  mkdir -p "$ORCHESTRATOR_STATE_DIR/panes"
+  ORCHESTRATOR_REGISTRATION_FILE="$ORCHESTRATOR_STATE_DIR/panes/$agent"
+fi
+
 reg_version=
 reg_pane_id=
 reg_pane_pid=
@@ -26,7 +40,8 @@ valid_agent_name() {
 
 load_registration() {
   [ -f "$ORCHESTRATOR_REGISTRATION_FILE" ] || orchestrator_die \
-    "root pane is not registered; run $(basename -- "$0") register PANE HARNESS"
+    "agent pane is not registered; run $(basename -- "$0") register PANE HARNESS"
+  [ ! -L "$ORCHESTRATOR_REGISTRATION_FILE" ] || orchestrator_die "registration must not be a symlink"
 
   while IFS='=' read -r key value; do
     case "$key" in
@@ -57,6 +72,7 @@ load_registration() {
 registration_marker() {
   printf 'v1 repo=%s harness=%s pane-pid=%s' \
     "$ORCHESTRATOR_REPO_NAME" "$reg_harness" "$reg_pane_pid"
+  [ "$agent" = orchestrator ] || printf ' agent=%s' "$agent"
 }
 
 validate_registration() {
@@ -150,6 +166,7 @@ notify_pane() {
 }
 
 acknowledge() {
+  [ "$agent" = orchestrator ] || orchestrator_die "peer replies use agent-channel.py acknowledge"
   response=$1
   orchestrator_valid_sha "$response" || orchestrator_die "invalid response head"
   local_head=$(git -C "$ORCHESTRATOR_REPO" rev-parse HEAD)
@@ -169,11 +186,19 @@ unregister() {
     "$ORCHESTRATOR_TMUX" set-option -p -u -t "$reg_pane_id" \
       @orchestrator_root 2>/dev/null || true
   fi
-  rm -f "$ORCHESTRATOR_REGISTRATION_FILE" "$ORCHESTRATOR_NOTIFIED_FILE"
-  printf 'unregistered root Orchestrator pane\n'
+  rm -f "$ORCHESTRATOR_REGISTRATION_FILE"
+  [ "$agent" != orchestrator ] || rm -f "$ORCHESTRATOR_NOTIFIED_FILE"
+  printf 'unregistered agent %s\n' "$agent"
 }
 
 case "${1:-}" in
+  message)
+    [ "$#" -eq 3 ] || orchestrator_die "usage: -a AGENT message ID COMMIT"
+    case "$2" in '' | *[!0-9a-f]*) orchestrator_die "invalid message ID" ;; esac
+    [ "${#2}" -eq 32 ] || orchestrator_die "invalid message ID"
+    orchestrator_valid_sha "$3" || orchestrator_die "invalid message commit"
+    deliver_message "# orchestrator-message $2 $3 for $agent: Read AGENT-PROTOCOL.md and the complete committed instruction. This is a locator, not expanded authority. Reply in the repository and acknowledge this message after verified publication."
+    ;;
   register)
     [ "$#" -eq 3 ] || orchestrator_die "usage: $(basename -- "$0") register PANE HARNESS"
     register_pane "$2" "$3"
@@ -214,6 +239,6 @@ case "${1:-}" in
     unregister
     ;;
   *)
-    orchestrator_die "usage: $(basename -- "$0") register|status|dry-run|notify|acknowledge|unregister"
+    orchestrator_die "usage: $(basename -- "$0") [-a AGENT] register|status|dry-run|notify|message|acknowledge|unregister"
     ;;
 esac

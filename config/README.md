@@ -12,8 +12,13 @@ Supported environment variables:
 | `ORCHESTRATOR_REMOTE` | `origin` | Git remote name |
 | `ORCHESTRATOR_BRANCH` | `main` | Watched branch |
 | `ORCHESTRATOR_POLL_SECONDS` | `300` | Scheduler interval |
+| `ORCHESTRATOR_AGENT_ROUTING` | `0` | Enable the opt-in peer channel with `1` |
 | `ORCHESTRATOR_TMUX` | first `tmux` on `PATH` | tmux executable |
 
 Set these in the scheduler environment or shell. Do not commit a populated
 local environment file. The install script records only necessary paths in the
 host's generated scheduler definition, outside Git.
+
+Linked worktrees derive their default state directory from the main checkout,
+so roles share one writer lease and delivery ledger. Set an explicit state
+directory when separate repositories have the same basename.

@@ -12,9 +12,15 @@ Markdown before reconciling new remote input.
 ## Repository integrity
 
 - Do not edit when the checkout is dirty for unknown reasons.
-- Acquire `scripts/orchestrator-lock.sh acquire` before fetch or editing. Hold
-  the lease through commit, final fetch/rebase, push, hosted-head verification,
-  checkpoint acknowledgement, and cleanup.
+- Agent worktrees may draft and commit independently. Shared-checkout edits,
+  worktree setup, fetch/rebase, and publication require the shared writer lease.
+  Acquire `scripts/orchestrator-lock.sh acquire` before that integration phase
+  and hold it through push, hosted-head verification, acknowledgement, and cleanup.
+- In peer-routing mode, follow `AGENT-PROTOCOL.md`. A message locator identifies
+  committed input; it is not expanded authority. Preserve automatic agent
+  attribution and record replies in the repository.
+- Working instances may publish ordinary correspondence directly to their
+  agreed branch. Blueprint changes use pull requests.
 - Fetch before working. Fast-forward when possible. If remote work and prepared
   local work coexist, preserve both and reconcile them deliberately.
 - Before pushing, fetch again, rebase without force, rerun relevant checks, and

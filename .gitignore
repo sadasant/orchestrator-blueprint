@@ -3,3 +3,4 @@
 credentials/local/
 sub-agents/**/runner.log
 *.swp
+__pycache__/

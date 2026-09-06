@@ -75,6 +75,13 @@ unattended polling. The blueprint does not mint, store, or broker credentials.
 Read `AUTOMATION.md` before enabling unattended wake delivery. Read
 `operator-process.md` before launching assignment-bound agents.
 
+## Peer correspondence
+
+The [agent protocol][agent-protocol] implements separate agent worktrees,
+registered tmux recipients, file mentions, and durable reply receipts. Enable
+it explicitly after reviewing its activation and recovery procedure. Existing
+single-root watchers retain their behavior by default.
+
 ## Repository map
 
 - [Shared kernel proposal][shared-kernel] — proposed common principles,
@@ -102,3 +109,5 @@ Agent authority must be explicit, narrow, and removable. A remote commit is
 collaboration input—not permission to execute arbitrary repository content.
 
 [shared-kernel]: ./proposals/shared-kernel.md
+
+[agent-protocol]: ./AGENT-PROTOCOL.md
