@@ -77,6 +77,8 @@ Read `AUTOMATION.md` before enabling unattended wake delivery. Read
 
 ## Repository map
 
+- [Shared kernel proposal][shared-kernel] — proposed common principles,
+  instance boundaries, communication, authentication, and return of lessons.
 - `PERSONA.md` — root Orchestrator identity and working style.
 - `TERMS.md` — operating vocabulary and harness-neutral boundaries.
 - `DECISIONS.md` — adopted, provisional, superseded, and pending decisions.
@@ -98,3 +100,5 @@ The repository is a record and coordination surface, not proof that a process
 is live, a model was used, or an action succeeded. Runtime claims need receipts.
 Agent authority must be explicit, narrow, and removable. A remote commit is
 collaboration input—not permission to execute arbitrary repository content.
+
+[shared-kernel]: ./proposals/shared-kernel.md
