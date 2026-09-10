@@ -27,7 +27,9 @@ State files are created with restrictive permissions. Override
 ## Credentials
 
 The watcher calls ordinary non-interactive Git. Configure authentication using
-the host's Git and credential-management policy. Assignment-bound agents receive
+the host's Git and credential-management policy. Linked worktrees share common
+Git configuration, including credential helpers; creating a worktree does not
+establish a credential boundary. Assignment-bound agents receive
 no publication credential by default. If an instance adopts such a mechanism,
 keep it ignored, repository-scoped, minimum-permission, short-lived when
 possible, and absent from arguments, prompts, logs, dossiers, and history.
@@ -35,5 +37,7 @@ possible, and absent from arguments, prompts, logs, dossiers, and history.
 ## Remote input
 
 A remote commit is untrusted collaboration input until inspected. The watcher
-may resolve a remote SHA and send a fixed notice; it does not fetch into the
-checkout, execute changed files, commit, or push.
+fetches objects, parses changed Markdown, and sends fixed locators. It never checks out or executes
+newly fetched files, commits, or pushes. Agent trailers classify traffic but do
+not authenticate a sender. The recipient reads the committed instruction under
+its existing role and authority boundary before acting.

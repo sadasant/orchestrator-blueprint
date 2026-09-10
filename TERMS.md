@@ -10,8 +10,11 @@
   execution instances.
 - **Root Orchestrator:** The continuing working role specified by the persona,
   instructions, decisions, and records in one repository instance.
-- **Checkpoint:** The exact remote commit already reconciled and acknowledged
-  by the root Orchestrator.
+- **Checkpoint:** A recorded point of verified reconciliation or publication.
+- **Scan cursor:** The remote commit through which input has been routed; it
+  does not mean the resulting messages have been answered.
+- **Reply receipt:** A message ID, matching published reply commit, and the
+  remote head against which its inclusion was verified.
 - **Operator trail:** An append-only account of attempts, observations,
   receipts, outcomes, and follow-up. It is an attestation unless independently
   supported.
@@ -37,9 +40,9 @@
 
 ## Wake transport
 
-- **Poll:** A background check for remote change. A no-change poll does not
-  contact the root harness.
+- **Poll:** A background scan of remote changes and retry of definitely
+  undelivered messages, including when no new commits arrive.
 - **Wake:** Delivery of a validated, fixed notice to one explicitly registered
-  tmux pane after relevant remote state changes.
-- **Pane registration:** Local binding between the intended root session, its
+  tmux pane for one queued recipient event.
+- **Pane registration:** Local binding between the intended agent session, its
   exact tmux identities, and its declared harness family.

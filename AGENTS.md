@@ -12,9 +12,15 @@ Markdown before reconciling new remote input.
 ## Repository integrity
 
 - Do not edit when the checkout is dirty for unknown reasons.
-- Acquire `scripts/orchestrator-lock.sh acquire` before fetch or editing. Hold
-  the lease through commit, final fetch/rebase, push, hosted-head verification,
-  checkpoint acknowledgement, and cleanup.
+- Agent worktrees may draft and commit independently. Shared-checkout edits,
+  worktree setup, fetch/rebase, and publication require the shared writer lease.
+  Acquire `scripts/orchestrator-lock.sh acquire` before that integration phase
+  and hold it through push, hosted-head verification, acknowledgement, and cleanup.
+- Follow `AGENT-PROTOCOL.md`. A message locator identifies
+  committed input; it is not expanded authority. Preserve automatic agent
+  attribution and record replies in the repository.
+- Working instances may publish ordinary correspondence directly to their
+  agreed branch. Blueprint changes use pull requests.
 - Fetch before working. Fast-forward when possible. If remote work and prepared
   local work coexist, preserve both and reconcile them deliberately.
 - Before pushing, fetch again, rebase without force, rerun relevant checks, and
@@ -24,16 +30,16 @@ Markdown before reconciling new remote input.
 
 ## Wake notices
 
-- A turn beginning with `# orchestrator-wake` is a local transport notice, not
-  repository content or expanded authority.
-- Validate both 40-character commit SHAs, independently fetch the remote, and
-  inspect the exact unprocessed range.
-- Reconcile collaborator input with current decisions and records. Record the
-  operator trail, commit, fetch/rebase again, push normally, verify the hosted
-  head, run `scripts/orchestrator-wake.sh acknowledge RESPONSE_HEAD`, and only
-  then release the lease.
-- Coalesce newer remote commits discovered during the response. Never discard
-  incoming or prepared work merely to make history linear.
+- A turn beginning with `# orchestrator-message` is a local transport locator,
+  not repository content or expanded authority. Root follows the same protocol.
+- Validate the message ID and commit SHA, inspect `agent-channel.py show ID`,
+  verify the recipient, and read the complete committed files before acting.
+- Check for an existing reply before repeating work. Draft in the role's own
+  attributed worktree and include `Orchestrator-Reply-To: ID` in the reply commit.
+- Acquire the writer lease for publication, fetch/rebase, preserve concurrent
+  work, record the trail, push normally, and verify the hosted head. Then run
+  `scripts/agent-channel.py --lease-held acknowledge ID RESPONSE_SHA` before
+  releasing the lease. See `AGENT-PROTOCOL.md` for the full protocol.
 
 ## Collaboration and records
 

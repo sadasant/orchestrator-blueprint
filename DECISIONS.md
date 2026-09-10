@@ -37,6 +37,23 @@ publication, verification, and checkpoint acknowledgement.
 Credentials, raw transcripts, exact home paths, pane registrations, logs, and
 machine configuration are ignored or stored outside the repository.
 
+### D-007 — Independent drafts, serialized publication
+
+Linked agent worktrees may draft and commit independently. The shared writer
+lease still protects shared-checkout edits, worktree setup, and the fetch,
+reconcile, publish, verify, and acknowledge sequence. This refines D-005 for
+peer collaboration without allowing concurrent shared-index writes.
+
+### D-008 — One correspondence system
+
+The [agent protocol][agent-protocol] adds named pane registrations, commit-based
+routing, and per-recipient delivery receipts for root and peers alike. An
+explicit reviewed baseline initializes new state; existing receipts survive
+transitions. There is no compatibility routing switch. Scanned, submitted, and
+acknowledged are distinct states; uncertain
+submission requires inspection before an explicit retry. The implementation
+does not select a credential broker or grant publication authority.
+
 ## Provisional
 
 - Five-minute remote polling is the default detection fallback. Event-driven
@@ -54,3 +71,5 @@ machine configuration are ignored or stored outside the repository.
 ## Superseded
 
 None.
+
+[agent-protocol]: ./AGENT-PROTOCOL.md
